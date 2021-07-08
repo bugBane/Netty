@@ -7,6 +7,7 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
+import java.util.Scanner;
 
 /**
  * NIO客户端
@@ -40,6 +41,7 @@ public class NIOChatClient {
     public void clientServer() {
         try {
             while (true) {
+                // 判断事件发生(select方法为阻塞的,如果一直没有事件发生,那么客户端就会阻塞在这里)
                 if (selector.select() > 0) {
                     Iterator<SelectionKey> keyIterator = selector.selectedKeys().iterator();
                     while (keyIterator.hasNext()) {
@@ -49,26 +51,50 @@ public class NIOChatClient {
                             SocketChannel readChannel = (SocketChannel) selectionKey.channel();
                             ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
                             readChannel.read(byteBuffer);
-                            System.out.println(new String(byteBuffer.array()));
+                            System.out.println(readChannel.getRemoteAddress() + ":" + new String(byteBuffer.array()));
                         }
                         keyIterator.remove();
                     }
-                } else {
-                    System.out.println("等待...");
                 }
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
-
     }
 
     // 向服务器发送消息
     public void sendMessage(String message) {
         try {
             socketChannel.write(ByteBuffer.wrap(message.getBytes()));
+            System.out.println(socketChannel.getRemoteAddress() + ":" + message);
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    // 客户端程序入口
+    public static void main(String[] args) {
+        // 程序主方法接收服务端消息
+        NIOChatClient chatClient = new NIOChatClient();
+        //启动一个线程, 每隔3秒，读取从服务器发送数据
+        new Thread() {
+            public void run() {
+                while (true) {
+                    chatClient.clientServer();
+                    try {
+                        Thread.currentThread().sleep(3000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }.start();
+        // 控制台输入信息
+        Scanner scanner = new Scanner(System.in);
+        // 主线程发送消息到服务端
+        while (scanner.hasNextLine()) {
+            String line = scanner.nextLine();
+            chatClient.sendMessage(line);
         }
     }
 

@@ -40,12 +40,11 @@ public class NIOChatServer {
     public void serverService() {
         try {
             while (true) {
-
                 // 判断事件发生(select方法为阻塞的,如果一直没有事件发生,那么服务端就会阻塞在这里)
                 if (selector.select() > 0) {
                     // 获取发生事件的selectionKey集合
                     Set<SelectionKey> selectionKeys = selector.selectedKeys();
-                    // 迭代器遍历集合(方便remove)
+                    // 迭代器遍历集合(remove,否则并发修改异常)
                     Iterator<SelectionKey> keyIterator = selectionKeys.iterator();
                     while (keyIterator.hasNext()) {
                         SelectionKey selectionKey = keyIterator.next();
@@ -67,8 +66,6 @@ public class NIOChatServer {
                         // 事件处理完成需要手动删除，防止重复处理
                         keyIterator.remove();
                     }
-                } else {
-                    System.out.println("等待...");
                 }
             }
         } catch (Exception e) {
@@ -93,7 +90,10 @@ public class NIOChatServer {
                 String message = new String(byteBuffer.array());
                 System.out.println(socketChannel.getRemoteAddress() + ":" + message);
                 // 转发该客户端数据到其他客户端
+                // socketChannel(正确)
                 transformMessageToOtherClient(message, socketChannel);
+                // selectionKey(错误)
+//                transformMessageToOtherClient(message, selectionKey);
             }
         } catch (IOException e) {
             try {
@@ -127,6 +127,26 @@ public class NIOChatServer {
         }
     }
 
+    // 转发该客户端数据到其他客户端(错误)
+    private void transformMessageToOtherClient(String message, SelectionKey selectionKey) {
+        // 获取所有注册的selectionKey
+        Set<SelectionKey> keys = selector.keys();
+        // 遍历keys
+        for (SelectionKey key : keys) {
+            // 排除自己(先判断实例是否相同类型，再判断是否是同一个对象地址)
+            if (key instanceof SelectionKey && selectionKey != key) {
+                Channel socketChannel = key.channel();
+                // 发送数据给客户端
+                try {
+                    ((SocketChannel) socketChannel).write(ByteBuffer.wrap(message.getBytes()));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    // 服务端入口
     public static void main(String[] args) {
         NIOChatServer chatServer = new NIOChatServer();
         chatServer.serverService();

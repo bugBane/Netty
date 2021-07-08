@@ -52,6 +52,8 @@ public class NIOServer {
                     SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
                     // 获取到该channel关联的buffer
                     ByteBuffer buffer = (ByteBuffer) selectionKey.attachment();
+                    // 如果客户端关闭那么这里将会报错IOException
+                    // 因为通道没有关闭但是无法读取信息了,需要可以抓取异常进行判断 详细可以查看NIOChatServer的离线提醒
                     socketChannel.read(buffer);
                     System.out.println("from 客户端 " + new String(buffer.array()));
                 }

@@ -4,3 +4,164 @@
     服务端:实现客户端的上线和下线提示
           转发客户端的信息给其他客户端
     客户端：实现对于服务端的读和写
+
+重点知识点:
+    1.服务端对于客户端数据的转发:需要排除自己的SocketChannel(尝试使用selectionKey不行,因为keys和selectionKey的类型不一样,注册的时候使用通道创建selectionKey,所以通道是相同的但是key是new出来的)
+    2.服务端主动抓取read的IOException来确定客户端断开连接且撤销selectionKey和关闭通道
+    3.客户端启动程序时需要开启异步线程来定时读取服务端数据，主线程用来控制台输入发送的消息
+
+
+思路步骤:
+    服务端:
+        1.定义端口号、多路复用选择器Selector、服务端通道ServerSocketChannel
+        2.提供构造方法:
+            初始化Selector.open()和ServerSocketChannel.open();
+            将serverSocketChannel.socket().bind(new InetSocketAddress(端口号))开启服务端启动;
+            设置serverSocketChannel.configureBlocking(false)非阻塞;
+            注册serverSocketChannel.register(selector,SelectionKey.OP_ACCEPT);
+        3.服务端监听serverService:
+            while(true){
+***              // 判断事件发生(select方法为阻塞的,如果一直没有事件发生,那么服务端就会阻塞在这里)!!!
+                if(selector.select()>0){
+***                 // keys所有注册了的SelectionKey集合，selectedKeys是所有有事件就绪的SelectionKey集合
+                    // 迭代器遍历集合(remove,否则并发修改异常)
+                    Iterator<SelectionKey> keyIterator = selector.selectedKeys().iterator();
+                    while (keyIterator.hasNext()) {
+                        SelectionKey selectionKey = keyIterator.next();
+                        // 判断客户端连接
+                        if (selectionKey.isAcceptable()) {
+                            SocketChannel socketChannel = serverSocketChannel.accept();
+                            // 客户端设置非阻塞
+                            socketChannel.configureBlocking(false);
+                            // socketChannel注册到Selector
+                            socketChannel.register(selector, SelectionKey.OP_READ);
+                            // 提示客户端上线
+                            System.out.println(socketChannel.getRemoteAddress() + ":已经上线");
+                        }
+                        // 判断客户端发送数据
+                        if (selectionKey.isReadable()) {
+                            // 读取客户端数据
+                            readMessage(selectionKey);
+                        }
+                        // 事件处理完成需要手动删除，防止重复处理
+                        keyIterator.remove();
+                    }
+                }
+            }
+        4.读取客户端数据readMessage:
+            // 读取客户端数据
+            private void readMessage(SelectionKey selectionKey) {
+                SocketChannel socketChannel = null;
+                try {
+                    // 获取该客户端socketChannel
+                    socketChannel = (SocketChannel) selectionKey.channel();
+                    // 获取该客户端byteBuffer
+                    ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
+                    // 读取客户端数据
+                    int read = socketChannel.read(byteBuffer);
+                    // 客户端传值
+                    if (read > 0) {
+                        // 读取客户端数据
+                        String message = new String(byteBuffer.array());
+                        System.out.println(socketChannel.getRemoteAddress() + ":" + message);
+                        // 转发该客户端数据到其他客户端
+                        transformMessageToOtherClient(message, socketChannel);
+                    }
+                } catch (IOException e) {
+                    try {
+                        //此时的IOException用来判断客户端是否关闭(远程连接的一个主机已经断开)
+                        System.out.println(socketChannel.getRemoteAddress() + ":已经离线");
+                        // 撤销注册selectionKey(详细可以看select()源码,其中this.processDeregisterQueue()方法有对于cancelledKeys的元素进行撤销:撤销keys和selectionKeys)
+                        selectionKey.cancel();
+                        //关闭通道
+                        socketChannel.close();
+                    } catch (IOException e2) {
+                        e2.printStackTrace();
+                    }
+                }
+            }
+        5.转发该客户端数据到其他客户端transformMessageToOtherClient:
+            // 转发该客户端数据到其他客户端
+            private void transformMessageToOtherClient(String message, SocketChannel socketChannel) {
+                // 获取所有注册的selectionKey
+                Set<SelectionKey> keys = selector.keys();
+                // 遍历keys
+                for (SelectionKey key : keys) {
+                    Channel targetChannel = key.channel();
+                    // 排除自己(先判断实例是否相同类型，再判断是否是同一个对象地址)
+                    if (targetChannel instanceof SocketChannel && targetChannel != socketChannel) {
+                        // 发送数据给客户端
+                        try {
+                            ((SocketChannel) targetChannel).write(ByteBuffer.wrap(message.getBytes()));
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            }
+        6.服务端程序入口main
+            // 创建服务端
+            NIOChatServer chatServer = new NIOChatServer();
+            // 调用监听serverService
+            chatServer.serverService();
+
+    客户端：
+        1.定义服务端IP地址、服务端端口号、多路复用选择器Selector、客户端通道SocketChannel
+        2.提供构造方法:
+            初始化Selector.open和初始化SocketChannel.open(new InetSocketAddress(IP,端口号));
+            设置socketChannel非阻塞,并注册socketChannel.register(selector,SelectionKey.OP_READ);
+        3.客户端服务(读取)
+            public void clientServer() {
+              try {
+                  while (true) {
+                      // 判断事件发生(select方法为阻塞的,如果一直没有事件发生,那么客户端就会阻塞在这里)
+                      if (selector.select() > 0) {
+                          Iterator<SelectionKey> keyIterator = selector.selectedKeys().iterator();
+                          while (keyIterator.hasNext()) {
+                              SelectionKey selectionKey = keyIterator.next();
+                              // 判断读取事件
+                              if (selectionKey.isReadable()) {
+                                  SocketChannel readChannel = (SocketChannel) selectionKey.channel();
+                                  ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
+                                  readChannel.read(byteBuffer);
+                                  System.out.println(readChannel.getRemoteAddress() + ":" + new String(byteBuffer.array()));
+                              }
+                              keyIterator.remove();
+                          }
+                      }
+                  }
+              } catch (IOException e) {
+                  e.printStackTrace();
+              }
+            }
+        4.向服务器发送消息
+            public void sendMessage(String message) {
+                try {
+                    socketChannel.write(ByteBuffer.wrap(message.getBytes()));
+                    System.out.println(socketChannel.getRemoteAddress() + ":" + message);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        5.客户端程序入口
+            创建NIOChatClient
+                NIOChatClient chatClient = new NIOChatClient();
+            异步线程3s定时读取服务端数据
+                new Thread() {
+                            public void run() {
+                                while (true) {
+                                    chatClient.clientServer();
+                                    try {
+                                        Thread.currentThread().sleep(3000);
+                                    } catch (InterruptedException e) {
+                                        e.printStackTrace();
+                                    }
+                                }
+                            }
+                        }.start();
+            主线程从控制台接收数据且发送消息到服务端
+                Scanner scanner = new Scanner(System.in);
+                while (scanner.hasNextLine()) {
+                    String line = scanner.nextLine();
+                    chatClient.sendMessage(line);
+                }
