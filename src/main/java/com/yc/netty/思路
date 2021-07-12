@@ -1,0 +1,94 @@
+Reactor模型：
+1.单Reactor单线程(原理图)
+
+    client  -请求-|
+                  |
+    client  -请求-|--------->    Reactor单线程:Reactor(select dispatch)
+                  |                      |
+    client  -请求-|         -----------------------------
+                            |                           |
+                         建立连接                    处理请求
+                            |                           |
+                         Acceptor(accept)           Handler(read send 业务处理)
+
+特点：Reactor单线程单线程处理所有操作(连接、read、send、业务)
+
+2.单Reactor多线程(原理图)
+
+    client  -请求-|
+                  |
+    client  -请求-|--------->             Reactor主线程:Reactor(select dispatch)
+                  |                                     |
+    client  -请求-|         ---------------------------------------------------------
+                            |                           |                           |
+                         建立连接                    处理请求                     处理请求
+                            |                           |                           |
+                         Acceptor(accept)           Handler(read send)          Handler(read send)
+                                                        |                           |
+                                    Worker线程池:   Worker线程1:Worker1(业务处理) Worker线程2:Worker2(业务处理)
+
+特点：Reactor主线程只进行连接和send和read操作，业务放入线程池
+
+3.主从Reactor(原理图)
+
+    client  -请求-|
+                  |
+    client  -请求-|--------->    Reactor主线程:Reactor(select dispatch) ---建立连接---> Acceptor(accept)
+                  |                                 |
+    client  -请求-|              Reactor子线程:Reactor(select dispatch)
+                                                    |
+                                    -----------------------------
+                                    |                           |
+                                 处理请求                     处理请求
+                                    |                           |
+                                Handler(read send)          Handler(read send)
+                                    |                           |
+                 Worker线程池:   Worker线程1:Worker1(业务处理) Worker线程2:Worker2(业务处理)
+
+特点：主线程只进行连接，子线程进行read和send，业务放入线程池(注意：Reactor子线程可以创建多个，主从分离，拓宽延展性，提升性能)
+------------------------------------------------------------------------------------------------------------------------
+Netty模型：基于Reactor主从模型改进
+1.Netty模型-简易版
+
+    client  -请求-|
+                  |
+    client  -请求-|--------->    BossGroup:Reactor(select dispatch) ---建立连接---> Acceptor(accept)
+                  |                                                                     |
+    client  -请求-|              WorkGroup:Reactor(select dispatch)  <---注册----   NioSocketChannel
+                                                    |
+                                    -----------------------------
+                                    |                           |
+                                 处理请求                     处理请求
+                                    |                           |
+                                Handler(read send)          Handler(read send)
+                                    |                           |
+                 Worker线程池:   Worker线程1:Worker1(业务处理) Worker线程2:Worker2(业务处理)
+
+2.Netty模型-详细版 ***
+
+    client  -请求-|
+                  |
+    client  -请求-|--------->    BossGroup:NioEventLoopGroup(Selector TaskQueue) --Accept--> NioEventLoop(step1:select -> step2:processSelectedKeys -> step3:runAllTasks)
+                  |                                                                                                             |
+    client  -请求-|              WorkGroup:NioEventLoopGroup(Selector TaskQueue)         <---------------------           注册channel到Selector
+                                                    |
+                                                Read/Write
+                                                    |
+                                                NioEventLoop(step1:select -> step2:processSelectedKeys -> step3:runAllTasks)
+                                                                                    |
+                                                                             Pipeline(ChannelHandler)
+
+1)Netty抽象出两组线程池：BossGroup专门负责客户端的连接，WorkGroup专门负责网络的读写
+2)BossGroup和WorkGroup类型都是NioEventLoopGroup
+3)NioEventLoopGroup相当于一个事件循环组，这个组中含有多个事件循环，每一个事件循环是NioEventLoop
+4)WorkGroup的NioEventLoopGroup可以有多个线程，即可以含有多个NioEventLoop
+5)NioEventLoop表示一个不断循环的执行处理任务的线程，每个NioEventLoop都有一个Selector，用于监听绑定在其上的socket的网络通讯
+6)每个Boss NioEventLoop循环执行的步骤：
+    轮询accept事件
+    处理accept事件，与client建立连接，生成NioSocketChannel,并将其注册到Work NioEventLoop上的Selector
+    处理任务队列的任务，即runAllTasks
+7)每个Work NioEventLoop循环执行的步骤：
+    轮询read、write事件
+    处理i/o事件，即read、write事件，在对应NioSocketChannel处理
+    处理任务队列的任务，即runAllTasks
+8)每个Work NioEventLoop处理业务时，会使用pipeline(管道)，pipeline中包含了channel，即通过pipeline可以获取对应通道，管道中维护了很多的处理器
