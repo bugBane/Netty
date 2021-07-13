@@ -70,7 +70,7 @@ Netty模型：基于Reactor主从模型改进
                   |
     client  -请求-|--------->    BossGroup:NioEventLoopGroup(Selector TaskQueue) --Accept--> NioEventLoop(step1:select -> step2:processSelectedKeys -> step3:runAllTasks)
                   |                                                                                                             |
-    client  -请求-|              WorkGroup:NioEventLoopGroup(Selector TaskQueue)         <---------------------           注册channel到Selector
+    client  -请求-|              WorkGroup:NioEventLoopGroup(Selector TaskQueue)         <---------------------           注册NioSocketChannel到Selector
                                                     |
                                                 Read/Write
                                                     |

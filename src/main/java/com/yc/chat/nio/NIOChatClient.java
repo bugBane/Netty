@@ -75,7 +75,7 @@ public class NIOChatClient {
     // 客户端程序入口
     public static void main(String[] args) {
         // 程序主方法接收服务端消息
-        NIOChatClient chatClient = new NIOChatClient();
+        final NIOChatClient chatClient = new NIOChatClient();
         //启动一个线程, 每隔3秒，读取从服务器发送数据
         new Thread() {
             public void run() {
