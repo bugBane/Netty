@@ -1,6 +1,7 @@
 package com.yc.netty.simple;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.CharsetUtil;
@@ -20,7 +21,6 @@ public class NettyServerHandlerDemo1 extends ChannelInboundHandlerAdapter {
      */
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-//        super.channelRead(ctx, msg);
         System.out.println("server ChannelHandlerContext:" + ctx);
         ByteBuf byteBuf = (ByteBuf) msg;
         System.out.println("客户端发送的消息是:" + byteBuf.toString(CharsetUtil.UTF_8));
@@ -29,11 +29,26 @@ public class NettyServerHandlerDemo1 extends ChannelInboundHandlerAdapter {
 
     /**
      * 数据读取完毕
-     * @param ctx   上下文对象,含有管道pipeline、通道channel、地址...
+     *
+     * @param ctx 上下文对象,含有管道pipeline、通道channel、地址...
      * @throws Exception
      */
     @Override
     public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
-//        super.channelReadComplete(ctx);
+        // 将数据写入到缓存并刷新(一般来说，我们对这个发送的数据进行编码)
+        ctx.writeAndFlush(Unpooled.copiedBuffer("Hello World Server", CharsetUtil.UTF_8));
+    }
+
+    /**
+     * 一般来说,出现异常需要关闭通道
+     *
+     * @param ctx   上下文对象,含有管道pipeline、通道channel、地址...
+     * @param cause 异常信息
+     * @throws Exception
+     */
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        // 关闭资源
+        ctx.close();
     }
 }
