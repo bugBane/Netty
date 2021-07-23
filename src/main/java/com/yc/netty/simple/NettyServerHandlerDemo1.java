@@ -21,10 +21,22 @@ public class NettyServerHandlerDemo1 extends ChannelInboundHandlerAdapter {
      */
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        System.out.println("server ChannelHandlerContext:" + ctx);
+//        System.out.println("server ChannelHandlerContext:" + ctx);
         ByteBuf byteBuf = (ByteBuf) msg;
-        System.out.println("客户端发送的消息是:" + byteBuf.toString(CharsetUtil.UTF_8));
-        System.out.println("客户端地址是:" + ctx.channel().remoteAddress());
+        // 加入taskQueue
+        ctx.channel().eventLoop().execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    System.out.println("客户端发送的消息是:" + byteBuf.toString(CharsetUtil.UTF_8));
+                    System.out.println("客户端地址是:" + ctx.channel().remoteAddress());
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+
     }
 
     /**
