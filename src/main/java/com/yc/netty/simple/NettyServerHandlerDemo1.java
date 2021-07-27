@@ -28,8 +28,10 @@ public class NettyServerHandlerDemo1 extends ChannelInboundHandlerAdapter {
             @Override
             public void run() {
                 try {
+                    System.out.println("服务端处理线程" + Thread.currentThread().getName());
                     System.out.println("客户端发送的消息是:" + byteBuf.toString(CharsetUtil.UTF_8));
                     System.out.println("客户端地址是:" + ctx.channel().remoteAddress());
+                    System.out.println("channel:"+ctx.channel());
                     Thread.sleep(2000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();

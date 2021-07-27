@@ -17,8 +17,8 @@ public class NettyServerDemo1 {
         // BossGroup:用来处理客户端连接(封装为NioEventLoop)，将连接的客户端(NioSocketChannel)注册到WorkGroup(封装为NioEventLoop)
         // WorkGroup:用来处理客户端read、write、业务(NioEventLoop)
         // 两个都是无限循环(处理任务队列)
-        EventLoopGroup bossGroup = new NioEventLoopGroup();
-        EventLoopGroup workGroup = new NioEventLoopGroup();
+        EventLoopGroup bossGroup = new NioEventLoopGroup(1);
+        EventLoopGroup workGroup = new NioEventLoopGroup(5);
         try {
             // 创建服务端的启动对象
             ServerBootstrap serverBootstrap = new ServerBootstrap();
