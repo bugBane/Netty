@@ -5,10 +5,12 @@ import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.string.StringDecoder;
+import io.netty.handler.codec.string.StringEncoder;
 
 public class NettyChatServer {
     // 服务端端口号
-    private int PORT;
+    private final int PORT;
 
     public NettyChatServer(int port) {
         this.PORT = port;
@@ -32,7 +34,13 @@ public class NettyChatServer {
                         protected void initChannel(SocketChannel socketChannel) throws Exception {
                             // 获取管道
                             ChannelPipeline pipeline = socketChannel.pipeline();
-                            pipeline.addLast();
+                            // 加入相关handler
+                            // 解码器
+                            pipeline.addLast("decoder", new StringDecoder());
+                            // 编码器
+                            pipeline.addLast("encoder", new StringEncoder());
+                            // 加入自定义handler
+                            pipeline.addLast(new NettyChatServerHandler());
                         }
                     });
             // 启动服务端
