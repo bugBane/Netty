@@ -94,10 +94,10 @@ Netty模型：基于Reactor主从模型改进
 8)每个Work NioEventLoop处理业务时，会使用pipeline(管道)，pipeline中包含了channel，即通过pipeline可以获取对应通道，管道中维护了很多的处理器
 
 3.Pipeline和channelPipeline:在Netty中每个Channel都有且仅有一个ChannelPipeline与之对应,它们的组成关系如下:
-                                    Channel
-                                ChannelPipeline
- head:ChannelHandler  <=>   ChannelHandler  <=>    ChannelHandler   <=>  tail:ChannelHandler
-ChannelHandlerContext      ChannelHandlerContext  ChannelHandlerContext ChannelHandlerContext
+                                                    Channel
+                                                    ChannelPipeline
+ head:ChannelHandlerContext  <=>   ChannelHandlerContext  <=>    ChannelHandlerContext   <=>  tail:ChannelHandlerContext
+      ChannelHandler               ChannelHandler                ChannelHandler                    ChannelHandler
 
 1)一个Channel包含了一个ChannelPipeline,而ChannelPipeline中又维护了一个由ChannelHandlerContext组成的双向链表,并且每个ChannelHandlerContext中有关联着一个ChannelHandler
 2)入站和出站事件在一个双向链表中,入站事件会从链表head往后传递到最后一个入站的handler,出站事件会从链表tail往前传递到最前一个出站的handler,两种类型的handler互不干扰
