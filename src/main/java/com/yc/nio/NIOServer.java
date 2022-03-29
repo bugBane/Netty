@@ -15,7 +15,7 @@ public class NIOServer {
         ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
         // 创建多路复用选择器Selector
         Selector selector = Selector.open();
-        // 绑定端口9001到ServerSocket，并启动
+        // 绑定端口8887到ServerSocket，并启动
         serverSocketChannel.socket().bind(new InetSocketAddress(8887));
         // 设置为非阻塞
         serverSocketChannel.configureBlocking(false);
